@@ -1,4 +1,8 @@
+from gl3004 import gl3004
+
 import argparse
+
+import platform
 
 import cv2
 import numpy as np
@@ -78,7 +82,7 @@ def infer_fast(net, img, net_input_height_size, stride, upsample_ratio, cpu,
     return heatmaps, pafs, scale, pad
 
 
-def run_demo(net, image_provider, height_size, cpu, track, smooth):
+def run_demo(net, image_provider, height_size, cpu, track, smooth, gl3004=None):
     net = net.eval()
     if not cpu:
         net = net.cuda()
@@ -119,13 +123,16 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth):
         for pose in current_poses:
             pose.draw(img)
         img = cv2.addWeighted(orig_img, 0.6, img, 0.4, 0)
+        '''
         for pose in current_poses:
             cv2.rectangle(img, (pose.bbox[0], pose.bbox[1]),
                           (pose.bbox[0] + pose.bbox[2], pose.bbox[1] + pose.bbox[3]), (0, 255, 0))
             if track:
                 cv2.putText(img, 'id: {}'.format(pose.id), (pose.bbox[0], pose.bbox[1] - 16),
                             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
-        cv2.imshow('Lightweight Human Pose Estimation Python Demo', img)
+        '''
+        #cv2.imshow('Lightweight Human Pose Estimation Python Demo', img)
+        cv2.imshow('Lightweight Human Pose Estimation Python Demo', cv2.resize(img, None, fx=0.8, fy=0.8))
         key = cv2.waitKey(delay)
         if key == 27:  # esc
             return
@@ -134,7 +141,28 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth):
                 delay = 0
             else:
                 delay = 33
+        elif key in [48, 49, 50, 51, 52, 53, 54, 55, 56, 57]: # 0~9
+            print(key)
 
+def close_device(device):
+  if platform.system() == 'Linux':
+    gl3004.uvc_close(device)
+  elif platform.system() == 'Windows':
+    gl3004.uvc_close(device)
+  else:
+    raise Exception('Platform is not supported.')
+
+def open_device(dev_path):
+  if dev_path == '':
+    return None
+
+  if platform.system() == 'Linux':
+    device = gl3004.uvc_open(dev_path)
+  elif platform.system() == 'Windows':
+    device = gl3004.uvc_open()
+  else:
+    raise Exception('Platform is not supported.')
+  return device
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -148,6 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', action='store_true', help='run network inference on cpu')
     parser.add_argument('--track', type=int, default=1, help='track pose id in video')
     parser.add_argument('--smooth', type=int, default=1, help='smooth pose keypoints')
+    parser.add_argument('--gl3004', type=str, default='', help='gl3004 device path')
     args = parser.parse_args()
 
     if args.video == '' and args.images == '':
@@ -157,10 +186,13 @@ if __name__ == '__main__':
     checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
     load_state(net, checkpoint)
 
+    gl3004 = None
     frame_provider = ImageReader(args.images)
     if args.video != '':
+        gl3004 = open_device(args.gl3004)
         frame_provider = VideoReader(args.video)
     else:
         args.track = 0
 
-    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth)
+    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth, gl3004)
+
