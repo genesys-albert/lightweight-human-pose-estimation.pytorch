@@ -82,7 +82,7 @@ def infer_fast(net, img, net_input_height_size, stride, upsample_ratio, cpu,
     return heatmaps, pafs, scale, pad
 
 
-def run_demo(net, image_provider, height_size, cpu, track, smooth, gl3004=None):
+def run_demo(net, image_provider, height_size, cpu, track, smooth, fx3=None):
     net = net.eval()
     if not cpu:
         net = net.cuda()
@@ -142,7 +142,7 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth, gl3004=None):
             else:
                 delay = 33
         elif key in [48, 49, 50, 51, 52, 53, 54, 55, 56, 57]: # 0~9
-            print(key)
+            gl3004.mode_change(fx3, key - 48)
 
 def close_device(device):
   if platform.system() == 'Linux':
@@ -186,13 +186,13 @@ if __name__ == '__main__':
     checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
     load_state(net, checkpoint)
 
-    gl3004 = None
+    fx3 = None
     frame_provider = ImageReader(args.images)
     if args.video != '':
-        gl3004 = open_device(args.gl3004)
+        fx3 = open_device(args.gl3004)
         frame_provider = VideoReader(args.video)
     else:
         args.track = 0
 
-    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth, gl3004)
+    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth, fx3)
 
