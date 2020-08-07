@@ -1,9 +1,13 @@
 import cv2
+import math
 import numpy as np
 
 from modules.keypoints import BODY_PARTS_KPT_IDS, BODY_PARTS_PAF_IDS
 from modules.one_euro_filter import OneEuroFilter
 
+def getAngle(a, b, c):
+    ang = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
+    return ang + 360 if ang < 0 else ang
 
 class Pose:
     num_kpts = 18
@@ -45,20 +49,45 @@ class Pose:
             self.id = Pose.last_id + 1
             Pose.last_id += 1
 
-    def draw(self, img):
+    def draw(self, img, show_all=True, show_part=0):
         assert self.keypoints.shape == (Pose.num_kpts, 2)
 
+        '''
+        points = [
+            self.keypoints[BODY_PARTS_KPT_IDS[0][1]],
+            self.keypoints[BODY_PARTS_KPT_IDS[0][0]],
+            self.keypoints[BODY_PARTS_KPT_IDS[12][1]]
+        ]
+        '''
+        #angle = getAngle(points[0], points[1], points[2])
+        # print(angle)
+        points = [
+            self.keypoints[BODY_PARTS_KPT_IDS[0][0]],
+            self.keypoints[BODY_PARTS_KPT_IDS[0][1]],
+            self.keypoints[BODY_PARTS_KPT_IDS[1][1]],
+            self.keypoints[BODY_PARTS_KPT_IDS[12][1]]
+        ]
+        # print(points)
+        if ((points[2][0] - points[1][0]) / (points[0][1] - points[3][1])) < 1.8:
+            Pose.color = [0, 255, 0]
+        else:
+            Pose.color = [0, 0, 255]
+
         for part_id in range(len(BODY_PARTS_PAF_IDS) - 2):
+            if not show_all:
+                if part_id != show_part: continue
             kpt_a_id = BODY_PARTS_KPT_IDS[part_id][0]
             global_kpt_a_id = self.keypoints[kpt_a_id, 0]
             if global_kpt_a_id != -1:
                 x_a, y_a = self.keypoints[kpt_a_id]
                 cv2.circle(img, (int(x_a), int(y_a)), 5, Pose.color, -1)
+                #cv2.circle(img, (int(x_a), int(y_a)), 5, [0,0,255], -1)
             kpt_b_id = BODY_PARTS_KPT_IDS[part_id][1]
             global_kpt_b_id = self.keypoints[kpt_b_id, 0]
             if global_kpt_b_id != -1:
                 x_b, y_b = self.keypoints[kpt_b_id]
                 cv2.circle(img, (int(x_b), int(y_b)), 5, Pose.color, -1)
+                #cv2.circle(img, (int(x_b), int(y_b)), 5, [0,255,0], -1)
             if global_kpt_a_id != -1 and global_kpt_b_id != -1:
                 cv2.line(img, (int(x_a), int(y_a)), (int(x_b), int(y_b)), Pose.color, 3)
 

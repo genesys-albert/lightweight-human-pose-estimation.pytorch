@@ -1,19 +1,16 @@
 from gl3004 import gl3004
 
-import argparse
-
-import platform
+import os, argparse, platform, time
 
 import cv2
 import numpy as np
 import torch
 
 from models.with_mobilenet import PoseEstimationWithMobileNet
-from modules.keypoints import extract_keypoints, group_keypoints
+from modules.keypoints import extract_keypoints, group_keypoints, BODY_PARTS_PAF_IDS
 from modules.load_state import load_state
 from modules.pose import Pose, track_poses
 from val import normalize, pad_width
-
 
 class ImageReader(object):
     def __init__(self, file_names):
@@ -82,7 +79,10 @@ def infer_fast(net, img, net_input_height_size, stride, upsample_ratio, cpu,
     return heatmaps, pafs, scale, pad
 
 
-def run_demo(net, image_provider, height_size, cpu, track, smooth, fx3=None):
+def run_demo(net, image_provider, height_size, cpu, track, smooth, ratio=1.0, fx3=None):
+    show_part = -1
+    show_all = True
+
     net = net.eval()
     if not cpu:
         net = net.cuda()
@@ -121,7 +121,7 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth, fx3=None):
             track_poses(previous_poses, current_poses, smooth=smooth)
             previous_poses = current_poses
         for pose in current_poses:
-            pose.draw(img)
+            pose.draw(img, show_all, show_part)
         img = cv2.addWeighted(orig_img, 0.6, img, 0.4, 0)
         '''
         for pose in current_poses:
@@ -132,37 +132,30 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth, fx3=None):
                             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
         '''
         #cv2.imshow('Lightweight Human Pose Estimation Python Demo', img)
-        cv2.imshow('Lightweight Human Pose Estimation Python Demo', cv2.resize(img, None, fx=0.8, fy=0.8))
+        cv2.imshow('Lightweight Human Pose Estimation Python Demo', cv2.resize(img, None, fx=ratio, fy=ratio))
         key = cv2.waitKey(delay)
-        if key == 27:  # esc
+        if key == 27:
             return
-        elif key == 112:  # 'p'
-            if delay == 33:
-                delay = 0
-            else:
-                delay = 33
-        elif key in [48, 49, 50, 51, 52, 53, 54, 55, 56, 57]: # 0~9
-            gl3004.mode_change(fx3, key - 48)
-
-def close_device(device):
-  if platform.system() == 'Linux':
-    gl3004.uvc_close(device)
-  elif platform.system() == 'Windows':
-    gl3004.uvc_close(device)
-  else:
-    raise Exception('Platform is not supported.')
-
-def open_device(dev_path):
-  if dev_path == '':
-    return None
-
-  if platform.system() == 'Linux':
-    device = gl3004.uvc_open(dev_path)
-  elif platform.system() == 'Windows':
-    device = gl3004.uvc_open()
-  else:
-    raise Exception('Platform is not supported.')
-  return device
+        if key >= 0 and key <= 255:
+            key = chr(key)
+            if key in '0123456789': # 0~9
+                fx3.mode_change(int(key) - int('0'))
+            elif key in 'sS':
+                timestamp = str(int(round(time.time() * 1000))) + '.jpg'
+                cv2.imwrite(os.path.join('tmp', timestamp), img)
+            elif key in 'aA':
+                show_all = True
+                show_part = -1
+                print('show all parts')
+            elif key in 'nN':
+                show_all = False
+                show_part = (show_part + 1) % (len(BODY_PARTS_PAF_IDS) - 2)
+                print('show part {}'.format(show_part))
+            elif key in 'pP':
+                if delay == 33:
+                    delay = 0
+                else:
+                    delay = 33
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -176,7 +169,8 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', action='store_true', help='run network inference on cpu')
     parser.add_argument('--track', type=int, default=1, help='track pose id in video')
     parser.add_argument('--smooth', type=int, default=1, help='smooth pose keypoints')
-    parser.add_argument('--gl3004', type=str, default='', help='gl3004 device path')
+    parser.add_argument('--resize', type=float, default=1.0, help='ratio of resize of image, to display')
+    parser.add_argument('--fx3', action="store_true", help='use FX3 device')
     args = parser.parse_args()
 
     if args.video == '' and args.images == '':
@@ -189,10 +183,11 @@ if __name__ == '__main__':
     fx3 = None
     frame_provider = ImageReader(args.images)
     if args.video != '':
-        fx3 = open_device(args.gl3004)
+        if args.fx3:
+            fx3 = gl3004.Device(gl3004.enumerate_device()[0])
         frame_provider = VideoReader(args.video)
     else:
         args.track = 0
 
-    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth, fx3)
+    run_demo(net, frame_provider, args.height_size, args.cpu, args.track, args.smooth, args.resize, fx3)
 
