@@ -49,7 +49,7 @@ class Pose:
             self.id = Pose.last_id + 1
             Pose.last_id += 1
 
-    def draw(self, img, show_all=True, show_part=0):
+    def draw(self, img, show_all=True, show_part=0, hans_up_mode=False):
         assert self.keypoints.shape == (Pose.num_kpts, 2)
 
         '''
@@ -65,13 +65,21 @@ class Pose:
             self.keypoints[BODY_PARTS_KPT_IDS[0][0]],
             self.keypoints[BODY_PARTS_KPT_IDS[0][1]],
             self.keypoints[BODY_PARTS_KPT_IDS[1][1]],
-            self.keypoints[BODY_PARTS_KPT_IDS[12][1]]
+            self.keypoints[BODY_PARTS_KPT_IDS[12][1]],
+            # arms and hands
+            self.keypoints[BODY_PARTS_KPT_IDS[3][1]],
+            self.keypoints[BODY_PARTS_KPT_IDS[5][1]],
         ]
-        # print(points)
-        if ((points[2][0] - points[1][0]) / (points[0][1] - points[3][1])) < 1.8:
-            Pose.color = [0, 255, 0]
+        angle = [getAngle(points[1], points[0], points[3]), getAngle(points[2], points[0], points[3])]
+        #print(angle)
+        Pose.color = [0, 255, 0]
+        if hans_up_mode:
+            if (points[4][1] > -1 and points[3][1] > -1 and points[5][1] > -1) and (points[4][1] < points[3][1] or points[5][1] < points[3][1]):
+                Pose.color = [255, 0, 0]
         else:
-            Pose.color = [0, 0, 255]
+            if (points[2][0] > -1 and points[1][0] > -1 and points[0][1] > -1 and points[3][1] > -1) and (points[0][1] - points[3][1]) > 0:
+                if ((points[2][0] - points[1][0]) / (points[0][1] - points[3][1])) > 1.8 or angle[0] < 55. or angle[1] < 55.:
+                    Pose.color = [0, 0, 255]
 
         for part_id in range(len(BODY_PARTS_PAF_IDS) - 2):
             if not show_all:

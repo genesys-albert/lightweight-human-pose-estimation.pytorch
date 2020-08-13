@@ -78,10 +78,10 @@ def infer_fast(net, img, net_input_height_size, stride, upsample_ratio, cpu,
 
     return heatmaps, pafs, scale, pad
 
-
 def run_demo(net, image_provider, height_size, cpu, track, smooth, ratio=1.0, fx3=None):
     show_part = -1
     show_all = True
+    hans_up_mode = False
 
     net = net.eval()
     if not cpu:
@@ -120,16 +120,32 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth, ratio=1.0, fx
         if track:
             track_poses(previous_poses, current_poses, smooth=smooth)
             previous_poses = current_poses
-        for pose in current_poses:
-            pose.draw(img, show_all, show_part)
+        if hans_up_mode:
+            for pose in current_poses:
+                pose.draw(img, show_all, show_part, hans_up_mode)            
+        else:
+            max_area = 0
+            max_bbox_pose = None
+            for pose in current_poses:
+                # print(pose.bbox)
+                area = pose.bbox[2] * pose.bbox[3]
+                if area > max_area:
+                    max_area = area
+                    max_bbox_pose = pose
+            #print('='*10)
+            if max_bbox_pose != None:
+                max_bbox_pose.draw(img, show_all, show_part, hans_up_mode)
+
         img = cv2.addWeighted(orig_img, 0.6, img, 0.4, 0)
         '''
         for pose in current_poses:
+            print(pose.bbox)
             cv2.rectangle(img, (pose.bbox[0], pose.bbox[1]),
                           (pose.bbox[0] + pose.bbox[2], pose.bbox[1] + pose.bbox[3]), (0, 255, 0))
             if track:
                 cv2.putText(img, 'id: {}'.format(pose.id), (pose.bbox[0], pose.bbox[1] - 16),
                             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
+        print('-'*20)
         '''
         #cv2.imshow('Lightweight Human Pose Estimation Python Demo', img)
         cv2.imshow('Lightweight Human Pose Estimation Python Demo', cv2.resize(img, None, fx=ratio, fy=ratio))
@@ -147,6 +163,9 @@ def run_demo(net, image_provider, height_size, cpu, track, smooth, ratio=1.0, fx
                 show_all = True
                 show_part = -1
                 print('show all parts')
+            elif key in 'hH':
+                hans_up_mode = not hans_up_mode
+                print('hans up mode: {}'.format(hans_up_mode))
             elif key in 'nN':
                 show_all = False
                 show_part = (show_part + 1) % (len(BODY_PARTS_PAF_IDS) - 2)
